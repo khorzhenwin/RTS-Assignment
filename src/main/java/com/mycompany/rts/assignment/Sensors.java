@@ -13,42 +13,50 @@ public class Sensors {
     public static void main(String[] args) {
         SensorData sensorData = new SensorData();
         ScheduledExecutorService flightControl = Executors.newScheduledThreadPool(
-                3);
+                5);
+
         flightControl.scheduleAtFixedRate(
-                sensorData.new AltitudeSensor(),
+                sensorData.new Sensor(50, "Altitude"),
                 2,
                 5,
                 TimeUnit.SECONDS);
+
         flightControl.scheduleAtFixedRate(
-                sensorData.new PressureSensor(),
+                sensorData.new Sensor(50, "Pressure"),
                 2,
                 5,
                 TimeUnit.SECONDS);
+
         flightControl.scheduleAtFixedRate(
-                sensorData.new PlaneSpeedSensor(),
+                sensorData.new Sensor(50, "PlaneSpeed"),
                 2,
                 5,
                 TimeUnit.SECONDS);
+
         flightControl.scheduleAtFixedRate(
-                sensorData.new TemperatureSensor(),
+                sensorData.new Sensor(50, "Temperature"),
                 2,
                 5,
                 TimeUnit.SECONDS);
+
+        flightControl.scheduleAtFixedRate(
+                sensorData.new Sensor(50, "Humidity"),
+                2,
+                5,
+                TimeUnit.SECONDS);
+
+        flightControl.scheduleAtFixedRate(
+                sensorData.new Sensor(50, "Rainfall"),
+                2,
+                5,
+                TimeUnit.SECONDS);
+
         flightControl.scheduleAtFixedRate(
                 sensorData.new WindSensor(),
                 2,
                 5,
                 TimeUnit.SECONDS);
-        flightControl.scheduleAtFixedRate(
-                sensorData.new HumiditySensor(),
-                2,
-                5,
-                TimeUnit.SECONDS);
-        flightControl.scheduleAtFixedRate(
-                sensorData.new RainfallSensor(),
-                2,
-                5,
-                TimeUnit.SECONDS);
+
     }
 }
 
@@ -56,7 +64,53 @@ class SensorData {
 
     String exchange = "flightControlExchange";
     String key = "sensorData";
-    ConnectionFactory cf = new ConnectionFactory();
+
+    class Sensor implements Runnable {
+        ConnectionFactory cf = new ConnectionFactory();
+
+        int initialReading;
+        String sensorType;
+
+        public Sensor(int initialReading, String sensorType) {
+            this.initialReading = initialReading;
+            this.sensorType = sensorType;
+        }
+
+        @Override
+        public void run() {
+            try (Connection con = cf.newConnection()) {
+                initialReading += getRandomValue();
+                initialReading = (initialReading < 0) ? 0 : initialReading;
+                String msg = sensorType + " Reading : " + initialReading;
+                Channel channel = con.createChannel();
+                channel.exchangeDeclare(exchange, "direct");
+                channel.basicPublish(exchange, key, false, null, msg.getBytes());
+                System.out.println("Sensor Data Sent - " + msg);
+            } catch (Exception e) {
+                System.out.println(e);
+            }
+        }
+    }
+
+    class WindSensor implements Runnable {
+        ConnectionFactory cf = new ConnectionFactory();
+
+        String direction = getRandomDirection();
+        String msg = (direction == "NONE")
+                ? "Wind Reading : " + direction + "|0"
+                : "Wind Reading : " + direction + "|" + getRandomValue();
+
+        @Override
+        public void run() {
+            try (Connection con = cf.newConnection()) {
+                Channel channel = con.createChannel();
+                channel.exchangeDeclare(exchange, "direct");
+                channel.basicPublish(exchange, key, false, null, msg.getBytes());
+                System.out.println("Sensor Data Sent - " + msg);
+            } catch (Exception e) {
+            }
+        }
+    }
 
     public static int getRandomValue() {
         // random value from -10 to 10
@@ -70,136 +124,5 @@ class SensorData {
         Random random = new Random();
         int select = random.nextInt(readings.length);
         return readings[select];
-    }
-
-    class AltitudeSensor implements Runnable {
-
-        int initialReading = 50;
-
-        @Override
-        public void run() {
-            try (Connection con = cf.newConnection()) {
-                initialReading += getRandomValue();
-                String msg = "Altitude Reading : " + initialReading;
-                Channel channel = con.createChannel();
-                channel.exchangeDeclare(exchange, "direct");
-                channel.basicPublish(exchange, key, false, null, msg.getBytes());
-                System.out.println("Sensor Data Sent - " + msg);
-            } catch (Exception e) {
-            }
-        }
-    }
-
-    class PressureSensor implements Runnable {
-
-        int initialReading = 50;
-
-        @Override
-        public void run() {
-            try (Connection con = cf.newConnection()) {
-                initialReading += getRandomValue();
-                String msg = "Pressure Reading : " + initialReading;
-                Channel channel = con.createChannel();
-                channel.exchangeDeclare(exchange, "direct");
-                channel.basicPublish(exchange, key, false, null, msg.getBytes());
-                System.out.println("Sensor Data Sent - " + msg);
-            } catch (Exception e) {
-            }
-        }
-    }
-
-    class PlaneSpeedSensor implements Runnable {
-
-        int initialReading = 50;
-
-        @Override
-        public void run() {
-            try (Connection con = cf.newConnection()) {
-                initialReading += getRandomValue();
-                String msg = "PlaneSpeed Reading : " + initialReading;
-                Channel channel = con.createChannel();
-                channel.exchangeDeclare(exchange, "direct");
-                channel.basicPublish(exchange, key, false, null, msg.getBytes());
-                System.out.println("Sensor Data Sent - " + msg);
-            } catch (Exception e) {
-            }
-        }
-    }
-
-    class TemperatureSensor implements Runnable {
-
-        int initialReading = 50;
-
-        @Override
-        public void run() {
-            try (Connection con = cf.newConnection()) {
-                initialReading += getRandomValue();
-                String msg = "Temperature Reading : " + initialReading;
-                Channel channel = con.createChannel();
-                channel.exchangeDeclare(exchange, "direct");
-                channel.basicPublish(exchange, key, false, null, msg.getBytes());
-                System.out.println("Sensor Data Sent - " + msg);
-            } catch (Exception e) {
-            }
-        }
-    }
-
-    class WindSensor implements Runnable {
-
-        String direction = getRandomDirection();
-        String msg = (direction == "NONE")
-                ? "Wind Reading : " + direction + "-0"
-                : "Wind Reading : " + direction + "-" + getRandomValue();
-
-        @Override
-        public void run() {
-            try (Connection con = cf.newConnection()) {
-                Channel channel = con.createChannel();
-                channel.exchangeDeclare(exchange, "direct");
-                channel.basicPublish(exchange, key, false, null, msg.getBytes());
-                System.out.println("Sensor Data Sent - " + msg);
-            } catch (Exception e) {
-            }
-        }
-    }
-
-    class HumiditySensor implements Runnable {
-
-        int initialReading = 50;
-
-        @Override
-        public void run() {
-            try (Connection con = cf.newConnection()) {
-                initialReading += getRandomValue();
-                if (initialReading < 0)
-                    initialReading = 0;
-                String msg = "Humidity Reading : " + initialReading;
-                Channel channel = con.createChannel();
-                channel.exchangeDeclare(exchange, "direct");
-                channel.basicPublish(exchange, key, false, null, msg.getBytes());
-                System.out.println("Sensor Data Sent - " + msg);
-            } catch (Exception e) {
-            }
-        }
-    }
-
-    class RainfallSensor implements Runnable {
-
-        int initialReading = 50;
-
-        @Override
-        public void run() {
-            try (Connection con = cf.newConnection()) {
-                initialReading += getRandomValue();
-                if (initialReading < 0)
-                    initialReading = 0;
-                String msg = "Rainfall Reading : " + initialReading;
-                Channel channel = con.createChannel();
-                channel.exchangeDeclare(exchange, "direct");
-                channel.basicPublish(exchange, key, false, null, msg.getBytes());
-                System.out.println("Sensor Data Sent - " + msg);
-            } catch (Exception e) {
-            }
-        }
     }
 }
