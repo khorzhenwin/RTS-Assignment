@@ -67,21 +67,28 @@ class Command {
       void relayCommands(String data) {
          String sensorType = data.split(" ")[0].trim();
          String reading = data.split(":")[1].trim();
+         ArrayList<String> commands = new ArrayList<String>();
+
          if (!(sensorType.equals("Wind")) && (Integer.valueOf(reading) < 30 || Integer.valueOf(reading) > 70)) {
             int sensorValue = Integer.valueOf(reading);
             System.out.println(getBalancingMessage(sensorType, sensorValue));
-            ArrayList<String> commands = getCommands(
-                  sensorType,
-                  sensorValue);
-            for (int i = 0; i < commands.size(); i++) {
-               Thread thread = new Thread(new CommandExchange(commands.get(i)));
-               thread.start();
-            }
+            commands = getCommands(sensorType, sensorValue);
          } else if (sensorType.equals("Wind")) {
-            // String direction = reading.split("|")[0].trim();
-            // String speed = reading.split("|")[1].trim();
+            String direction = reading.split("@")[0].trim();
+            String speed = reading.split("@")[1].trim();
+            if (direction.equals("NONE") || Integer.valueOf(speed) == 0) {
+               System.out.println("Normal reading for " + sensorType + " sensor. No action required.");
+            } else {
+               System.out.println("Wind Speed Detected. Balancing ...");
+               commands = getCommands(sensorType, Integer.valueOf(speed));
+            }
          } else {
             System.out.println("Normal reading for " + sensorType + " sensor. No action required.");
+         }
+
+         for (int i = 0; i < commands.size(); i++) {
+            Thread thread = new Thread(new CommandExchange(commands.get(i)));
+            thread.start();
          }
       }
 
@@ -136,6 +143,17 @@ class Command {
                   commands.add("Emergency : Heavy Rainfall Detected");
                   commands.add("Emergency : Pinging Nearest Airports");
                   commands.add("Emergency : Deploy Landing Gear");
+               }
+               break;
+            case "Wind":
+               if (sensorValue < 0) {
+                  // going too fast, raise flags
+                  commands.add("Raise WingFlaps");
+                  commands.add("Raise TailFlaps");
+               } else {
+                  // going too slow, lower flags
+                  commands.add("Lower WingFlaps");
+                  commands.add("Lower TailFlaps");
                }
                break;
          }

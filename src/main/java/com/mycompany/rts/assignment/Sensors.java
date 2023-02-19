@@ -97,8 +97,8 @@ class SensorData {
 
         String direction = getRandomDirection();
         String msg = (direction == "NONE")
-                ? "Wind Reading : " + direction + "|0"
-                : "Wind Reading : " + direction + "|" + getRandomValue();
+                ? "Wind Reading : " + direction + "@0"
+                : "Wind Reading : " + direction + "@" + getRandomValue();
 
         @Override
         public void run() {
