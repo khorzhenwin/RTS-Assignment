@@ -6,6 +6,9 @@ import com.rabbitmq.client.ConnectionFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public class FlightControl {
@@ -13,7 +16,8 @@ public class FlightControl {
    public static void main(String[] args) throws IOException, TimeoutException {
       String exchange = "flightControlExchange";
       String key = "sensorData";
-
+      ScheduledExecutorService flightControl = Executors.newScheduledThreadPool(
+            2);
       ConnectionFactory cf = new ConnectionFactory();
 
       Connection connection = cf.newConnection();
@@ -35,8 +39,11 @@ public class FlightControl {
             x -> {
             });
 
-      Thread thread = new Thread(command.new CommandLogic());
-      thread.start();
+      flightControl.scheduleAtFixedRate(
+            command.new CommandLogic(),
+            2,
+            5,
+            TimeUnit.SECONDS);
    }
 
 }
@@ -100,7 +107,7 @@ class Command {
                   commands.add("Increase Altitude");
                   commands.add("Raise WingFlaps");
                   commands.add("Raise TailFlaps");
-               } else {
+               } else if (sensorValue > 70) {
                   commands.add("Decrease Altitude");
                   commands.add("Lower WingFlaps");
                   commands.add("Lower TailFlaps");
@@ -112,14 +119,14 @@ class Command {
                } else if (sensorValue > 70) {
                   commands.add("Decrease Pressure - Venting Cabin");
                } else if (sensorValue < 10 || sensorValue > 90) {
-                  commands.add("Emergency : Deployment of Oxygen Masks");
+                  commands.add("Emergency : Deploy Oxygen Masks");
                }
                break;
             case "PlaneSpeed":
                if (sensorValue < 30) {
                   commands.add("Increase PlaneSpeed");
                   commands.add("Increase EngineThrust");
-               } else {
+               } else if (sensorValue > 70) {
                   commands.add("Decrease PlaneSpeed");
                   commands.add("Decrease EngineThrust");
                }
@@ -127,14 +134,14 @@ class Command {
             case "Temperature":
                if (sensorValue < 30) {
                   commands.add("Increase Temperature");
-               } else {
+               } else if (sensorValue > 70) {
                   commands.add("Decrease Temperature");
                }
                break;
             case "Humidity":
                if (sensorValue < 30) {
                   commands.add("Increase Humidity");
-               } else {
+               } else if (sensorValue > 70) {
                   commands.add("Decrease Humidity");
                }
                break;
@@ -146,12 +153,14 @@ class Command {
                }
                break;
             case "Wind":
-               if (sensorValue < 0) {
+               if (sensorValue < -5) {
                   // going too fast, raise flags
+                  commands.add("Backward Wind Detected");
                   commands.add("Raise WingFlaps");
                   commands.add("Raise TailFlaps");
-               } else {
+               } else if (sensorValue > 5) {
                   // going too slow, lower flags
+                  commands.add("Forward Wind Detected");
                   commands.add("Lower WingFlaps");
                   commands.add("Lower TailFlaps");
                }
