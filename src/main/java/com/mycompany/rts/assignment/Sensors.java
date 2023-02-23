@@ -18,8 +18,8 @@ public class Sensors {
         String exchange = "sensorExchange";
         String key = "actuatorData";
         SensorData sensorData = new SensorData();
-
         ConnectionFactory cf = new ConnectionFactory();
+
         Connection connection = cf.newConnection();
         Channel channel = connection.createChannel();
         channel.exchangeDeclare(exchange, "direct");
@@ -36,59 +36,23 @@ public class Sensors {
                 x -> {
                 });
 
-        ScheduledExecutorService flightControl = Executors.newScheduledThreadPool(
-                5);
+        ScheduledExecutorService flightControl = Executors.newScheduledThreadPool(7);
+        String[] sensorTypes = { "Altitude", "Pressure", "PlaneSpeed", "Temperature", "Humidity", "Rainfall", "Wind" };
+        for (String sensorType : sensorTypes) {
+            flightControl.scheduleAtFixedRate(
+                    sensorData.new PublishSensorData(sensorType),
+                    2,
+                    5,
+                    TimeUnit.SECONDS);
+        }
 
-        flightControl.scheduleAtFixedRate(
-                sensorData.new Sensor("Altitude"),
-                2,
-                5,
-                TimeUnit.SECONDS);
-
-        flightControl.scheduleAtFixedRate(
-                sensorData.new Sensor("Pressure"),
-                2,
-                5,
-                TimeUnit.SECONDS);
-
-        flightControl.scheduleAtFixedRate(
-                sensorData.new Sensor("PlaneSpeed"),
-                2,
-                5,
-                TimeUnit.SECONDS);
-
-        flightControl.scheduleAtFixedRate(
-                sensorData.new Sensor("Temperature"),
-                2,
-                5,
-                TimeUnit.SECONDS);
-
-        flightControl.scheduleAtFixedRate(
-                sensorData.new Sensor("Humidity"),
-                2,
-                5,
-                TimeUnit.SECONDS);
-
-        flightControl.scheduleAtFixedRate(
-                sensorData.new Sensor("Rainfall"),
-                2,
-                5,
-                TimeUnit.SECONDS);
-
-        flightControl.scheduleAtFixedRate(
-                sensorData.new Sensor("Wind"),
-                2,
-                5,
-                TimeUnit.SECONDS);
-
-        Thread actuatorFeedbackThread = new Thread(sensorData.new ActuatorFeedback());
+        Thread actuatorFeedbackThread = new Thread(sensorData.new ProcessActuatorFeedback());
         actuatorFeedbackThread.start();
 
     }
 }
 
 class SensorData {
-
     public volatile ArrayList<String> actuatorFeedback = new ArrayList<String>();
     public volatile int altitude = 50;
     public volatile int pressure = 50;
@@ -96,9 +60,6 @@ class SensorData {
     public volatile int temperature = 50;
     public volatile int humidity = 50;
     public volatile int rainfall = 50;
-
-    String exchange = "flightControlExchange";
-    String key = "sensorData";
 
     public synchronized void addActuatorFeedback(String data) {
         actuatorFeedback.add(data);
@@ -118,62 +79,88 @@ class SensorData {
         return readings[select];
     }
 
-    class Sensor implements Runnable {
-
-        ConnectionFactory cf = new ConnectionFactory();
-
+    class PublishSensorData extends Publisher implements Runnable {
         String sensorType;
 
-        public Sensor(String sensorType) {
+        public PublishSensorData(String sensorType) {
+            super("flightControlExchange", "sensorData");
             this.sensorType = sensorType;
+        }
+
+        public String getPublishMessage(String sensorType) {
+            String msg = "";
+            switch (sensorType) {
+                case "Altitude":
+                    altitude += getRandomValue();
+                    msg = sensorType + " Reading : " + altitude;
+                    break;
+                case "Pressure":
+                    pressure += getRandomValue();
+                    msg = sensorType + " Reading : " + pressure;
+                    break;
+                case "PlaneSpeed":
+                    planeSpeed += getRandomValue();
+                    msg = sensorType + " Reading : " + planeSpeed;
+                    break;
+                case "Temperature":
+                    temperature += getRandomValue();
+                    msg = sensorType + " Reading : " + temperature;
+                    break;
+                case "Humidity":
+                    humidity += getRandomValue();
+                    msg = sensorType + " Reading : " + humidity;
+                    break;
+                case "Rainfall":
+                    rainfall += getRandomValue();
+                    msg = sensorType + " Reading : " + rainfall;
+                    break;
+                case "Wind":
+                    String direction = getRandomDirection();
+                    msg = (direction == "NONE")
+                            ? "Wind Reading : " + direction + "@0"
+                            : "Wind Reading : " + direction + "@" + getRandomValue();
+            }
+            return msg;
         }
 
         @Override
         public void run() {
-            try (Connection con = cf.newConnection()) {
-                String msg = "";
-                switch (sensorType) {
-                    case "Altitude":
-                        altitude += getRandomValue();
-                        msg = sensorType + " Reading : " + altitude;
-                        break;
-                    case "Pressure":
-                        pressure += getRandomValue();
-                        msg = sensorType + " Reading : " + pressure;
-                        break;
-                    case "PlaneSpeed":
-                        planeSpeed += getRandomValue();
-                        msg = sensorType + " Reading : " + planeSpeed;
-                        break;
-                    case "Temperature":
-                        temperature += getRandomValue();
-                        msg = sensorType + " Reading : " + temperature;
-                        break;
-                    case "Humidity":
-                        humidity += getRandomValue();
-                        msg = sensorType + " Reading : " + humidity;
-                        break;
-                    case "Rainfall":
-                        rainfall += getRandomValue();
-                        msg = sensorType + " Reading : " + rainfall;
-                        break;
-                    case "Wind":
-                        String direction = getRandomDirection();
-                        msg = (direction == "NONE")
-                                ? "Wind Reading : " + direction + "@0"
-                                : "Wind Reading : " + direction + "@" + getRandomValue();
-                }
-                Channel channel = con.createChannel();
-                channel.exchangeDeclare(exchange, "direct");
-                channel.basicPublish(exchange, key, false, null, msg.getBytes());
-                System.out.println("Sensor Data Sent - " + msg);
+            try {
+                String msg = getPublishMessage(sensorType);
+                publish(msg);
             } catch (Exception e) {
                 System.out.println(e);
             }
         }
+
     }
 
-    class ActuatorFeedback implements Runnable {
+    class ProcessActuatorFeedback implements Runnable {
+        public void processActuatorFeedback(String feedback) {
+            String command = feedback.split(" ")[0]; // Increase or Decrease
+            String sensorType = feedback.split(" ")[1]; // Pressure,Temperature,Altitude,PlaneSpeed,Humidity,Rainfall
+            int adjustment = (command.trim() == "Increase") ? 10 : -10;
+            switch (sensorType) {
+                case "Pressure":
+                    pressure += adjustment;
+                    break;
+                case "Temperature":
+                    temperature += adjustment;
+                    break;
+                case "Altitude":
+                    altitude += adjustment;
+                    break;
+                case "PlaneSpeed":
+                    planeSpeed += adjustment;
+                    break;
+                case "Humidity":
+                    humidity += adjustment;
+                    break;
+                case "Rainfall":
+                    rainfall += adjustment;
+                    break;
+            }
+        }
 
         @Override
         public void run() {
@@ -182,39 +169,6 @@ class SensorData {
                     processActuatorFeedback(actuatorFeedback.get(0));
                     actuatorFeedback.remove(0);
                 }
-            }
-        }
-
-        public void processActuatorFeedback(String feedback) {
-            String command = feedback.split(" ")[0]; // Increase or Decrease
-            String sensorType = feedback.split(" ")[1]; // Pressure,Temperature,Altitude,PlaneSpeed,Humidity,Rainfall
-            System.out.println("Processing Feedback - " + command + " " + sensorType);
-            int adjustment = (command.trim() == "Increase") ? 10 : -10;
-            switch (sensorType) {
-                case "Pressure":
-                    System.out.println("Pressure Adjusted");
-                    pressure += adjustment;
-                    break;
-                case "Temperature":
-                    System.out.println("Temperature Adjusted");
-                    temperature += adjustment;
-                    break;
-                case "Altitude":
-                    System.out.println("Altitude Adjusted");
-                    altitude += adjustment;
-                    break;
-                case "PlaneSpeed":
-                    System.out.println("PlaneSpeed Adjusted");
-                    planeSpeed += adjustment;
-                    break;
-                case "Humidity":
-                    System.out.println("Humidity Adjusted");
-                    humidity += adjustment;
-                    break;
-                case "Rainfall":
-                    System.out.println("Rainfall Adjusted");
-                    rainfall += adjustment;
-                    break;
             }
         }
     }

@@ -16,18 +16,14 @@ public class FlightControl {
    public static void main(String[] args) throws IOException, TimeoutException {
       String exchange = "flightControlExchange";
       String key = "sensorData";
-      ScheduledExecutorService flightControl = Executors.newScheduledThreadPool(
-            2);
+      ScheduledExecutorService flightControl = Executors.newScheduledThreadPool(2);
       ConnectionFactory cf = new ConnectionFactory();
-
+      Command command = new Command();
       Connection connection = cf.newConnection();
       Channel channel = connection.createChannel();
-
       channel.exchangeDeclare(exchange, "direct");
       String QUEUE_NAME = channel.queueDeclare().getQueue();
       channel.queueBind(QUEUE_NAME, exchange, key);
-
-      Command command = new Command();
 
       channel.basicConsume(
             QUEUE_NAME,
@@ -65,13 +61,17 @@ class Command {
       public void run() {
          while (true) {
             if (getSensorDataSize() > 0) {
-               relayCommands(sensorData.get(0));
-               sensorData.remove(0);
+               try {
+                  relayCommands(sensorData.get(0));
+                  sensorData.remove(0);
+               } catch (Exception e) {
+                  e.printStackTrace();
+               }
             }
          }
       }
 
-      void relayCommands(String data) {
+      void relayCommands(String data) throws IOException, TimeoutException {
          String sensorType = data.split(" ")[0].trim();
          String reading = data.split(":")[1].trim();
          ArrayList<String> commands = new ArrayList<String>();
@@ -80,15 +80,12 @@ class Command {
             int sensorValue = Integer.valueOf(reading);
             System.out.println(getBalancingMessage(sensorType, sensorValue));
             commands = getCommands(sensorType, sensorValue);
-         } else if (sensorType.equals("Wind")) {
-            String direction = reading.split("@")[0].trim();
+         } else if (sensorType.equals("Wind") && !reading.split("@")[0].trim().equals("NONE")) {
+            // String direction = reading.split("@")[0].trim();
             String speed = reading.split("@")[1].trim();
-            if (direction.equals("NONE") || Integer.valueOf(speed) == 0) {
-               System.out.println("Normal reading for " + sensorType + " sensor. No action required.");
-            } else {
-               System.out.println("Wind Speed Detected. Balancing ...");
-               commands = getCommands(sensorType, Integer.valueOf(speed));
-            }
+
+            System.out.println("Wind Speed Detected. Balancing ...");
+            commands = getCommands(sensorType, Integer.valueOf(speed));
          } else {
             System.out.println("Normal reading for " + sensorType + " sensor. No action required.");
          }
@@ -181,24 +178,18 @@ class Command {
    }
 }
 
-class CommandExchange implements Runnable {
-
-   String exchange = "actuatorExchange";
-   String key = "commandData";
-   ConnectionFactory cf = new ConnectionFactory();
-
+class CommandExchange extends Publisher implements Runnable {
    String command;
 
-   public CommandExchange(String command) {
+   public CommandExchange(String command) throws IOException, TimeoutException {
+      super("actuatorExchange", "commandData");
       this.command = command;
    }
 
    @Override
    public void run() {
-      try (Connection con = cf.newConnection()) {
-         Channel channel = con.createChannel();
-         channel.exchangeDeclare(exchange, "direct");
-         channel.basicPublish(exchange, key, false, null, command.getBytes());
+      try {
+         publish(command);
          System.out.println("Command Sent - " + command);
       } catch (Exception e) {
       }
