@@ -104,7 +104,7 @@ class ActuatorData {
                 case "Emergency : Deploy Landing Gear":
                     isLandingGear = true;
                     break;
-                case "Emergency : Oxygen Mask":
+                case "Emergency : Deploy Oxygen Masks":
                     isOxygenMask = true;
                     break;
                 case "Raise WingFlaps":
@@ -121,9 +121,11 @@ class ActuatorData {
                     break;
                 case "Increase EngineThrust":
                     engineThrust += 5;
+                    feedbackList.add("Increase PlaneSpeed");
                     break;
                 case "Decrease EngineThrust":
                     engineThrust -= 5;
+                    feedbackList.add("Decrease PlaneSpeed");
                     break;
                 case "Increase Pressure - Repressurizing Cabin":
                     cabinPressure += 5;
@@ -155,12 +157,7 @@ class ActuatorData {
                 case "Decrease Altitude":
                     feedbackList.add("Decrease Altitude");
                     break;
-                case "Increase PlaneSpeed":
-                    feedbackList.add("Increase PlaneSpeed");
-                    break;
-                case "Decrease PlaneSpeed":
-                    feedbackList.add("Decrease PlaneSpeed");
-                    break;
+
             }
 
         }
