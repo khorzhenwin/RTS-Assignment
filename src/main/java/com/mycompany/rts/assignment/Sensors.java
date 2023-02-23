@@ -5,7 +5,6 @@ import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -30,8 +29,8 @@ public class Sensors {
                 QUEUE_NAME,
                 ((x, msg) -> {
                     String m = new String(msg.getBody(), "utf-8");
-                    sensorData.addActuatorFeedback(m);
                     System.out.println("Feedback Received - " + m);
+                    sensorData.processActuatorFeedback(m);
                 }),
                 x -> {
                 });
@@ -46,24 +45,16 @@ public class Sensors {
                     TimeUnit.SECONDS);
         }
 
-        Thread actuatorFeedbackThread = new Thread(sensorData.new ProcessActuatorFeedback());
-        actuatorFeedbackThread.start();
-
     }
 }
 
 class SensorData {
-    public volatile ArrayList<String> actuatorFeedback = new ArrayList<String>();
     public volatile int altitude = 50;
     public volatile int pressure = 50;
     public volatile int planeSpeed = 50;
     public volatile int temperature = 50;
     public volatile int humidity = 50;
     public volatile int rainfall = 50;
-
-    public synchronized void addActuatorFeedback(String data) {
-        actuatorFeedback.add(data);
-    }
 
     public synchronized static int getRandomValue() {
         // random value from -10 to 10
@@ -79,12 +70,54 @@ class SensorData {
         return readings[select];
     }
 
+    public void processActuatorFeedback(String feedback) {
+        String command = feedback.split(" ")[0]; // Increase or Decrease
+        String sensorType = feedback.split(" ")[1]; // Pressure,Temperature,Altitude,PlaneSpeed,Humidity,Rainfall
+        int adjustment = (command.trim() == "Increase") ? 10 : -10;
+        switch (sensorType) {
+            case "Pressure":
+                pressure += adjustment;
+                System.out.println("Adjusted " + sensorType + " Reading : " + pressure);
+                break;
+            case "Temperature":
+                temperature += adjustment;
+                System.out.println("Adjusted " + sensorType + " Reading : " + temperature);
+                break;
+            case "Altitude":
+                altitude += adjustment;
+                System.out.println("Adjusted " + sensorType + " Reading : " + altitude);
+                break;
+            case "PlaneSpeed":
+                planeSpeed += adjustment;
+                System.out.println("Adjusted " + sensorType + " Reading : " + planeSpeed);
+                break;
+            case "Humidity":
+                humidity += adjustment;
+                System.out.println("Adjusted " + sensorType + " Reading : " + humidity);
+                break;
+            case "Rainfall":
+                rainfall += adjustment;
+                System.out.println("Adjusted " + sensorType + " Reading : " + rainfall);
+                break;
+        }
+    }
+
     class PublishSensorData extends Publisher implements Runnable {
         String sensorType;
 
         public PublishSensorData(String sensorType) {
             super("flightControlExchange", "sensorData");
             this.sensorType = sensorType;
+        }
+
+        @Override
+        public void run() {
+            try {
+                String msg = getPublishMessage(sensorType);
+                publish(msg);
+            } catch (Exception e) {
+                System.out.println(e);
+            }
         }
 
         public String getPublishMessage(String sensorType) {
@@ -123,54 +156,6 @@ class SensorData {
             return msg;
         }
 
-        @Override
-        public void run() {
-            try {
-                String msg = getPublishMessage(sensorType);
-                publish(msg);
-            } catch (Exception e) {
-                System.out.println(e);
-            }
-        }
-
-    }
-
-    class ProcessActuatorFeedback implements Runnable {
-        public void processActuatorFeedback(String feedback) {
-            String command = feedback.split(" ")[0]; // Increase or Decrease
-            String sensorType = feedback.split(" ")[1]; // Pressure,Temperature,Altitude,PlaneSpeed,Humidity,Rainfall
-            int adjustment = (command.trim() == "Increase") ? 10 : -10;
-            switch (sensorType) {
-                case "Pressure":
-                    pressure += adjustment;
-                    break;
-                case "Temperature":
-                    temperature += adjustment;
-                    break;
-                case "Altitude":
-                    altitude += adjustment;
-                    break;
-                case "PlaneSpeed":
-                    planeSpeed += adjustment;
-                    break;
-                case "Humidity":
-                    humidity += adjustment;
-                    break;
-                case "Rainfall":
-                    rainfall += adjustment;
-                    break;
-            }
-        }
-
-        @Override
-        public void run() {
-            while (true) {
-                if (actuatorFeedback.size() > 0) {
-                    processActuatorFeedback(actuatorFeedback.get(0));
-                    actuatorFeedback.remove(0);
-                }
-            }
-        }
     }
 
 }
